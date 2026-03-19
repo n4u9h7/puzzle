@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trash Sliding Puzzle - Fixed Touch</title>
+    <title>Trash Sliding Puzzle - Tabbed Hints</title>
     <style>
         :root {
             --cell-size: 50px;
@@ -15,7 +15,7 @@
         body { 
             background-color: var(--bg-color); color: white; margin: 0; padding: 10px 0;
             display: flex; flex-direction: column; align-items: center; 
-            font-family: sans-serif; overflow: hidden; touch-action: none;
+            font-family: sans-serif; overflow-y: auto; touch-action: pan-y; /* 힌트가 길 경우 스크롤 허용 */
         }
 
         #game-header { display: flex; justify-content: space-between; width: calc(var(--cell-size) * 6); margin-bottom: 10px; font-weight: bold; }
@@ -36,6 +36,7 @@
         }
         .block.selected { outline: 3px solid #fff; z-index: 10; }
         
+        /* 블록 색상 생략 방지를 위해 유지 */
         .trash { background: linear-gradient(135deg, #8d6e63, #5d4037); border: 2px solid #3e2723; }
         .purple { background: linear-gradient(135deg, #ab47bc, #7b1fa2); border: 2px solid #4a148c; }
         .orange { background: linear-gradient(135deg, #ffa726, #f57c00); border: 2px solid #e65100; }
@@ -45,6 +46,16 @@
 
         .btn-reset { padding: 5px 15px; background: #e74c3c; border: none; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; }
         #status-msg { margin-top: 10px; color: #f1c40f; font-weight: bold; height: 1.5em; }
+
+        /* --- 힌트 탭 스타일 --- */
+        #hint-section { margin-top: 20px; width: calc(var(--cell-size) * 6); }
+        .tab-wrapper { display: flex; background: #1a252f; border-radius: 8px 8px 0 0; overflow: hidden; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: #1a252f; color: #bdc3c7; cursor: pointer; font-weight: bold; border-bottom: 3px solid transparent; transition: 0.3s; }
+        .tab-btn.active { background: #34495e; color: #f1c40f; border-bottom: 3px solid #f1c40f; }
+        
+        .hint-body { background: #34495e; padding: 15px; border-radius: 0 0 8px 8px; font-size: 0.88rem; line-height: 1.6; min-height: 100px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .hint-text { display: none; color: #ecf0f1; }
+        .hint-text.active { display: block; }
     </style>
 </head>
 <body>
@@ -57,7 +68,24 @@
     <div id="game-container"></div>
     <div id="status-msg"></div>
 
-    <p style="font-size: 0.8rem; color: #bdc3c7; margin-top: 5px;">블록을 손가락으로 밀어서 이동시키세요!</p>
+    <div id="hint-section">
+        <div class="tab-wrapper">
+            <button class="tab-btn active" onclick="openTab(event, 'hint1')">힌트 1</button>
+            <button class="tab-btn" onclick="openTab(event, 'hint2')">힌트 2</button>
+            <button class="tab-btn" onclick="openTab(event, 'hint3')">힌트 3</button>
+        </div>
+        <div class="hint-body">
+            <div id="hint1" class="hint-text active">
+                무엇을 어떻게 움직여도 금방 막혀 버린다고 생각할지도 모른다. 우선 아래 줄에 있는 2개의 L자 모양 블록 중 하나를 상단의 왼쪽 또는 오른쪽 공간에 끼워 넣자. 블록의 넓은 면을 벽 쪽으로 붙여서, 벽과의 사이에 빈틈이 생기지 않도록 해야 한다.
+            </div>
+            <div id="hint2" class="hint-text">
+                가장 아래에 있는 푸른 블록과, 힌트 1에서 위쪽으로 올리지 않은 L자 모양 블록의 위아래 위치를 서로 바꾼 후, 그 L자 모양 블록을 쓰레기통 안으로 넣어 버리자.
+            </div>
+            <div id="hint3" class="hint-text">
+                힌트 1에서 위로 올려 놓은 아래 줄의 L자 모양 블록을 다시 아래로 내리고, 처음에 위 줄에 있었던 2개의 L자 모양 블록을 상단 좌우의 공간에 빈틈없이 넣는다. 그러면 쓰레기를 아래로 내릴 수 있게 된다. 나머지는 스스로 해 보자!
+            </div>
+        </div>
+    </div>
 
 <script>
     const container = document.getElementById('game-container');
@@ -118,14 +146,13 @@
                 part.style.top = (block.y + p[1]) * cellSize + 'px';
                 if(p[0] === 0 && p[1] === 0) part.innerText = block.label;
 
-                // 터치/마우스 통합 이벤트 (Pointer Events)
                 part.onpointerdown = (e) => {
                     e.preventDefault();
                     selectedId = block.id;
                     isDragging = true;
                     startX = e.clientX;
                     startY = e.clientY;
-                    part.setPointerCapture(e.pointerId); // 터치가 블록 밖으로 나가도 인식하게 함
+                    part.setPointerCapture(e.pointerId);
                     renderBlocks();
                 };
                 container.appendChild(part);
@@ -179,6 +206,20 @@
             }
         }
         return true;
+    }
+
+    // --- 탭 전환 로직 ---
+    function openTab(evt, hintId) {
+        const texts = document.getElementsByClassName("hint-text");
+        for (let i = 0; i < texts.length; i++) {
+            texts[i].classList.remove("active");
+        }
+        const buttons = document.getElementsByClassName("tab-btn");
+        for (let i = 0; i < buttons.length; i++) {
+            buttons[i].classList.remove("active");
+        }
+        document.getElementById(hintId).classList.add("active");
+        evt.currentTarget.classList.add("active");
     }
 
     resetGame();
